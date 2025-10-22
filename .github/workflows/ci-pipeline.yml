@@ -1,0 +1,40 @@
+name: CI Lint Check
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  lint-proxy:
+    name: Run apigeelint on Apigee Proxy
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js (apigeelint runs on Node)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      # Step 3: Install apigeelint globally
+      - name: Install apigeelint
+        run: npm install -g apigeelint
+
+      # Step 4: Show workspace structure (debug helper)
+      - name: Show workspace layout
+        run: |
+          echo "Current working directory:"
+          pwd
+          echo "Repository contents:"
+          ls -R
+
+      # Step 5: Run apigeelint on the Apigee proxy bundle
+      - name: Run apigeelint on apiproxy folder
+        run: |
+          echo "Running apigeelint scan..."
+          apigeelint -s ./apiproxy -f stylish.js
