@@ -31,40 +31,34 @@ jobs:
       - name: Zip Apigee Proxy
         run: zip -r hello-world.zip apiproxy
 
-      # Step 5: Get Auth Token and Import via REST
+            # Step 5: Import API Proxy Revision
       - name: Import API Proxy Revision
         id: import_proxy
         run: |
-          echo "Authenticating and importing proxy via REST API..."
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          echo "Zipping Apigee proxy source..."
+          zip -r hello-world.zip apiproxy
 
-          echo "Uploading proxy to Apigee X..."
+          echo "Importing proxy via REST API..."
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
           RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -F "file=@hello-world.zip" \
             "https://apigee.googleapis.com/v1/organizations/${{ secrets.GCP_PROJECT_ID }}/apis?action=import&name=hello-world")
-
-          echo "Import response:"
           echo "$RESPONSE"
-
           REVISION=$(echo "$RESPONSE" | grep -o '"revision"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
-          echo "Imported Revision: $REVISION"
           echo "imported_revision=$REVISION" >> $GITHUB_OUTPUT
 
-      # Step 6: Deploy the imported revision
+      # Step 6: Deploy imported revision
       - name: Deploy API Proxy Revision to EVAL
         run: |
           echo "Deploying revision ${{ steps.import_proxy.outputs.imported_revision }} to eval..."
           ACCESS_TOKEN=$(gcloud auth print-access-token)
-
           curl -X POST \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\": \"hello-world\", \"revision\": \"${{ steps.import_proxy.outputs.imported_revision }}\"}" \
             "https://apigee.googleapis.com/v1/organizations/${{ secrets.GCP_PROJECT_ID }}/environments/eval/apis/hello-world/revisions/${{ steps.import_proxy.outputs.imported_revision }}/deployments?override=true"
-
-          echo "✅ Successfully deployed revision ${{ steps.import_proxy.outputs.imported_revision }}"
 
       # Step 7: Done
       - name: Complete job
         run: echo "✅ Apigee X Deployment Completed Successfully!"
+
+
