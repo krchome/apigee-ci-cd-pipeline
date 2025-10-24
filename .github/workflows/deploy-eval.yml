@@ -21,14 +21,14 @@ jobs:
       # --- THIS IS THE NEW FIX ---
       - name: Install gcloud beta component
         run: |
-          gcloud components install apigee --quiet
+          gcloud components install beta --quiet
       # --------------------------
 
       - name: Import API Proxy Revision
         id: import_proxy
         run: |
           REVISION=$(gcloud apigee apis import \
-            --api="my-genai-proxy" \
+            --api="hello-world" \
             --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --source="apiproxy/" \
             --format="value(revision)")
@@ -37,7 +37,7 @@ jobs:
       - name: Deploy API Proxy Revision to EVAL
         run: |
           gcloud apigee deployments create \
-            --api="my-genai-proxy" \
+            --api="hello-world" \
             --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --environment="eval" \
             --revision="${{ steps.import_proxy.outputs.imported_revision }}"
