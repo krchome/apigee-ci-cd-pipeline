@@ -19,7 +19,7 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       # --- THIS IS THE NEW FIX ---
-      - name: Install gcloud apigee component
+      - name: Install gcloud beta component
         run: |
           gcloud components install apigee --quiet
       # --------------------------
