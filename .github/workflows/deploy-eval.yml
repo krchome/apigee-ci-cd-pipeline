@@ -34,45 +34,36 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       # -----------------------------------------
-      # Step 4: Update gcloud and install beta
+      # Step 4: Update and install beta components
       # -----------------------------------------
       - name: Update and install beta components
         run: |
           gcloud components update --quiet
           gcloud components install beta --quiet
+          gcloud --version
 
       # ---------------------------------------------------
-      # Step 5: Import (Create) the API Proxy into Apigee X
+      # Step 5: Zip and Deploy the Proxy using 'archives'
       # ---------------------------------------------------
-      - name: Import API Proxy Revision
-        id: import_proxy
+      - name: Import and Deploy API Proxy Revision
+        id: deploy_proxy
         run: |
           echo "Zipping Apigee proxy source..."
           zip -r hello-world.zip apiproxy
 
-          echo "Importing proxy to Apigee X..."
-          REVISION=$(gcloud apigee apis create "hello-world" \
+          echo "Deploying proxy bundle to Apigee X..."
+          gcloud apigee archives deploy "hello-world.zip" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --source="hello-world.zip" \
-            --format="value(revision)")
+            --api="hello-world" \
+            --environment="eval" \
+            --format="value(revision)" > revision.txt
 
-          echo "Imported revision: $REVISION"
+          REVISION=$(cat revision.txt)
+          echo "Deployed revision: $REVISION"
           echo "imported_revision=$REVISION" >> $GITHUB_OUTPUT
 
-      # ---------------------------------------------------
-      # Step 6: Deploy the imported revision to eval env
-      # ---------------------------------------------------
-      - name: Deploy API Proxy Revision to EVAL
-        run: |
-          echo "Deploying revision ${{ steps.import_proxy.outputs.imported_revision }} to eval..."
-          gcloud apigee deployments create \
-            --api="hello-world" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --environment="eval" \
-            --revision="${{ steps.import_proxy.outputs.imported_revision }}"
-
       # ---------------------------------------------
-      # Step 7: Completion message
+      # Step 6: Completion message
       # ---------------------------------------------
       - name: Complete job
         run: echo "✅ Successfully deployed hello-world proxy to Apigee X eval environment!"
