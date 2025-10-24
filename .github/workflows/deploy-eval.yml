@@ -3,56 +3,76 @@ name: Deploy API Proxy to EVAL
 on:
   push:
     branches:
-      - main  # Only run when code is merged to main
-  workflow_dispatch: # Allows us to run it manually too
+      - main   # Run only when code is merged to main
+  workflow_dispatch: # Allow manual trigger from Actions tab
 
 jobs:
   deploy-to-eval:
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------------------
+      # Step 1: Checkout the source
+      # ----------------------------
       - name: Checkout code
-        uses: 'actions/checkout@v4'
+        uses: actions/checkout@v4
 
+      # ------------------------------------
+      # Step 2: Authenticate to Google Cloud
+      # ------------------------------------
       - name: Authenticate to Google Cloud
-        uses: 'google-github-actions/auth@v2'
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
+      # -------------------------------
+      # Step 3: Set up Cloud SDK
+      # -------------------------------
       - name: Set up Cloud SDK
-        uses: 'google-github-actions/setup-gcloud@v2'
+        uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # --- NEW STEP 1: Update all gcloud components to latest ---
-      - name: Update gcloud components
+      # -----------------------------------------
+      # Step 4: Update gcloud and install beta
+      # -----------------------------------------
+      - name: Update and install beta components
         run: |
           gcloud components update --quiet
-      # ---------------------------------------------------------
-
-      # --- NEW STEP 2: Install the beta component ---
-      - name: Install gcloud beta component
-        run: |
           gcloud components install beta --quiet
-      # ----------------------------------------------
 
+      # ---------------------------------------------------
+      # Step 5: Import (Create) the API Proxy into Apigee X
+      # ---------------------------------------------------
       - name: Import API Proxy Revision
         id: import_proxy
         run: |
-          # Now this command should finally exist
-          REVISION=$(gcloud apigee apis import \
-            --api="hello-world" \
-            --organization="${{ secrets.GCP_PROJECT_ID }}" \
-            --source="apiproxy/" \
+          echo "Zipping Apigee proxy source..."
+          zip -r hello-world.zip apiproxy
+
+          echo "Importing proxy to Apigee X..."
+          REVISION=$(gcloud apigee apis create "hello-world" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --source="hello-world.zip" \
             --format="value(revision)")
 
           echo "Imported revision: $REVISION"
           echo "imported_revision=$REVISION" >> $GITHUB_OUTPUT
 
+      # ---------------------------------------------------
+      # Step 6: Deploy the imported revision to eval env
+      # ---------------------------------------------------
       - name: Deploy API Proxy Revision to EVAL
         run: |
+          echo "Deploying revision ${{ steps.import_proxy.outputs.imported_revision }} to eval..."
           gcloud apigee deployments create \
             --api="hello-world" \
-            --organization="${{ secrets.GCP_PROJECT_ID }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
             --environment="eval" \
             --revision="${{ steps.import_proxy.outputs.imported_revision }}"
+
+      # ---------------------------------------------
+      # Step 7: Completion message
+      # ---------------------------------------------
+      - name: Complete job
+        run: echo "✅ Successfully deployed hello-world proxy to Apigee X eval environment!"
