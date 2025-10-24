@@ -41,7 +41,7 @@ jobs:
         run: |
           # Now this command should finally exist
           REVISION=$(gcloud apigee apis import \
-            --api="my-genai-proxy" \ # <-- Make sure this matches your proxy name!
+            --api="hello-world" \ # <-- Make sure this matches your proxy name!
             --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --source="apiproxy/" \
             --format="value(revision)")
@@ -52,7 +52,7 @@ jobs:
       - name: Deploy API Proxy Revision to EVAL
         run: |
           gcloud apigee deployments create \
-            --api="my-genai-proxy" \ # <-- Make sure this matches your proxy name!
+            --api="hello-world" \ # <-- Make sure this matches your proxy name!
             --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --environment="eval" \
             --revision="${{ steps.import_proxy.outputs.imported_revision }}"
