@@ -52,7 +52,7 @@ jobs:
           zip -r hello-world.zip apiproxy
 
           echo "Deploying proxy bundle to Apigee X..."
-          gcloud apigee archives deploy "hello-world.zip" \
+          gcloud beta apigee archives deploy "hello-world.zip" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --api="hello-world" \
             --environment="eval" \
