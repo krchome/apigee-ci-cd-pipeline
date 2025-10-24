@@ -1,44 +1,43 @@
 name: Deploy API Proxy to EVAL
-
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
-
 jobs:
   deploy-to-eval:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Authenticate to Google Cloud
         uses: 'google-github-actions/auth@v2'
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
-
       - name: Set up Cloud SDK
         uses: 'google-github-actions/setup-gcloud@v2'
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
+      # --- THIS IS THE NEW FIX ---
+      - name: Install gcloud apigee component
+        run: |
+          gcloud components install apigee --quiet
+      # --------------------------
+
       - name: Import API Proxy Revision
         id: import_proxy
         run: |
-          REVISION=$(gcloud apigee apis version import "hello-world" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
+          REVISION=$(gcloud apigee apis import \
+            --api="my-genai-proxy" \
+            --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --source="apiproxy/" \
             --format="value(revision)")
-
           echo "Imported revision: $REVISION"
           echo "imported_revision=$REVISION" >> $GITHUB_OUTPUT
-
       - name: Deploy API Proxy Revision to EVAL
         run: |
           gcloud apigee deployments create \
-            --api="hello-world" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --api="my-genai-proxy" \
+            --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --environment="eval" \
             --revision="${{ steps.import_proxy.outputs.imported_revision }}"
