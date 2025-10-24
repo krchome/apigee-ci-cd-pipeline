@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -27,40 +27,44 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # Step 4: Update and install beta components
-      - name: Update and install beta components
-        run: |
-          gcloud components update --quiet
-          gcloud components install beta --quiet
-          gcloud --version
+      # Step 4: Zip proxy folder
+      - name: Zip Apigee Proxy
+        run: zip -r hello-world.zip apiproxy
 
-      # Step 5: Import proxy (upload only)
+      # Step 5: Get Auth Token and Import via REST
       - name: Import API Proxy Revision
         id: import_proxy
         run: |
-          echo "Zipping Apigee proxy source..."
-          zip -r hello-world.zip apiproxy
+          echo "Authenticating and importing proxy via REST API..."
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
 
-          echo "Importing proxy bundle to Apigee X..."
-          REVISION=$(gcloud beta apigee apis import "hello-world" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --source="hello-world.zip" \
-            --format="value(revision)")
+          echo "Uploading proxy to Apigee X..."
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -F "file=@hello-world.zip" \
+            "https://apigee.googleapis.com/v1/organizations/${{ secrets.GCP_PROJECT_ID }}/apis?action=import&name=hello-world")
 
-          echo "Imported revision: $REVISION"
+          echo "Import response:"
+          echo "$RESPONSE"
+
+          REVISION=$(echo "$RESPONSE" | grep -o '"revision"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)
+          echo "Imported Revision: $REVISION"
           echo "imported_revision=$REVISION" >> $GITHUB_OUTPUT
 
-      # Step 6: Deploy imported revision
+      # Step 6: Deploy the imported revision
       - name: Deploy API Proxy Revision to EVAL
         run: |
           echo "Deploying revision ${{ steps.import_proxy.outputs.imported_revision }} to eval..."
-          gcloud beta apigee deployments create \
-            --api="hello-world" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --environment="eval" \
-            --revision="${{ steps.import_proxy.outputs.imported_revision }}" \
-            --format="json"
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
 
-      # Step 7: Completion message
+          curl -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"hello-world\", \"revision\": \"${{ steps.import_proxy.outputs.imported_revision }}\"}" \
+            "https://apigee.googleapis.com/v1/organizations/${{ secrets.GCP_PROJECT_ID }}/environments/eval/apis/hello-world/revisions/${{ steps.import_proxy.outputs.imported_revision }}/deployments?override=true"
+
+          echo "✅ Successfully deployed revision ${{ steps.import_proxy.outputs.imported_revision }}"
+
+      # Step 7: Done
       - name: Complete job
-        run: echo "✅ Successfully imported and deployed hello-world proxy to Apigee X eval environment!"
+        run: echo "✅ Apigee X Deployment Completed Successfully!"
