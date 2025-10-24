@@ -1,43 +1,58 @@
 name: Deploy API Proxy to EVAL
+
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main  # Only run when code is merged to main
+  workflow_dispatch: # Allows us to run it manually too
+
 jobs:
   deploy-to-eval:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: 'actions/checkout@v4'
+
       - name: Authenticate to Google Cloud
         uses: 'google-github-actions/auth@v2'
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
       - name: Set up Cloud SDK
         uses: 'google-github-actions/setup-gcloud@v2'
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # --- THIS IS THE NEW FIX ---
+      # --- NEW STEP 1: Update all gcloud components to latest ---
+      - name: Update gcloud components
+        run: |
+          gcloud components update --quiet
+      # ---------------------------------------------------------
+
+      # --- NEW STEP 2: Install the beta component ---
       - name: Install gcloud beta component
         run: |
           gcloud components install beta --quiet
-      # --------------------------
+      # ----------------------------------------------
 
       - name: Import API Proxy Revision
         id: import_proxy
         run: |
+          # Now this command should finally exist
           REVISION=$(gcloud apigee apis import \
-            --api="hello-world" \
+            --api="my-genai-proxy" \ # <-- Make sure this matches your proxy name!
             --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --source="apiproxy/" \
             --format="value(revision)")
+
           echo "Imported revision: $REVISION"
           echo "imported_revision=$REVISION" >> $GITHUB_OUTPUT
+
       - name: Deploy API Proxy Revision to EVAL
         run: |
           gcloud apigee deployments create \
-            --api="hello-world" \
+            --api="my-genai-proxy" \ # <-- Make sure this matches your proxy name!
             --organization="${{ secrets.GCP_PROJECT_ID }}" \
             --environment="eval" \
             --revision="${{ steps.import_proxy.outputs.imported_revision }}"
